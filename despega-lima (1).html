@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Despega Lima</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout concept: a departures-board catalog. Every destination is a luggage tag led by its IATA code,
+   sorted like a store shelf; detail view is a flight list with a separate price calendar. */
+:root {
+  --bg: #E8EDF1;
+  --surface: #F7F9FB;
+  --surface2: #DCE4EA;
+  --fg: #121C26;
+  --muted: #53626F;
+  --line: #C7D1D9;
+  --accent: #F2A93B;
+  --accent-fg: #1A1204;
+  --price: #8A4E00;
+  --good: #1F7A5A;
+  --warn: #B3481E;
+  --heat-a: 46%;
+  --heat-b: 22%;
+  --art1: 34%;
+  --art2: 46%;
+  --focus: #1B5FD1;
+  --display: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1721; --surface: #14212E; --surface2: #1C2D3D; --fg: #E6EDF3; --muted: #92A3B2; --line: #26384A;
+    --price: #FFC15E; --good: #4FC59A; --warn: #F08A5D; --heat-a: 40%; --heat-b: 18%; --art1: 22%; --art2: 32%; --focus: #7FB0FF;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1721; --surface: #14212E; --surface2: #1C2D3D; --fg: #E6EDF3; --muted: #92A3B2; --line: #26384A;
+  --price: #FFC15E; --good: #4FC59A; --warn: #F08A5D; --heat-a: 40%; --heat-b: 18%; --art1: 22%; --art2: 32%; --focus: #7FB0FF;
+  color-scheme: dark;
+}
+:root { color-scheme: light; }
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 0 32px; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wrap { max-width: 1180px; margin-inline: auto; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; text-wrap: balance; margin: 0; line-height: 1.05; }
+
+/* top bar */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-block: 14px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: .01em; }
+.brand .tag { font-family: var(--mono); font-size: 12px; font-weight: 500; background: var(--accent); color: var(--accent-fg); padding: 3px 7px; border-radius: 4px; letter-spacing: .08em; }
+.toggles { display: flex; gap: 14px; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; padding: 6px 11px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.demo { background: var(--surface2); border: 1px dashed var(--muted); border-radius: 6px; padding: 8px 12px; font-size: 13px; color: var(--muted); }
+.demo b { color: var(--fg); }
+
+/* hero */
+.hero { padding-block: 28px 18px; display: grid; gap: 8px; }
+.hero h1 { font-size: clamp(34px, 6vw, 58px); }
+.hero p { margin: 0; color: var(--muted); max-width: 60ch; }
+
+/* toolbar */
+.toolbar { display: grid; gap: 12px; padding-block: 10px 16px; border-block: 1px solid var(--line); margin-block-end: 18px; }
+.trow { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
+.field input[type="search"], .field select { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; color: var(--fg); min-width: 0; }
+.field input[type="search"] { width: min(280px, 100%); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.check { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; }
+.check input { width: 16px; height: 16px; accent-color: var(--good); }
+.range { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.range input { width: min(220px, 100%); accent-color: var(--price); }
+.count { font-size: 13px; color: var(--muted); margin-inline-start: auto; }
+
+/* destination grid */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 232px), 1fr)); gap: 14px; }
+.card { display: flex; flex-direction: column; text-align: start; padding: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; overflow: hidden; transition: transform .15s ease, border-color .15s ease; min-width: 0; }
+.card:hover { transform: translateY(-3px); border-color: var(--muted); }
+.art { position: relative; height: 104px; background: linear-gradient(135deg, hsl(var(--h) 52% var(--art1)), hsl(calc(var(--h) + 32) 58% var(--art2))); color: #fff; overflow: hidden; }
+.art .big { position: absolute; inset-inline-start: 12px; bottom: -14px; font-family: var(--display); font-weight: 700; font-size: 92px; line-height: 1; letter-spacing: .02em; opacity: .28; }
+.art .rt { position: absolute; inset-inline-start: 12px; top: 10px; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; opacity: .92; }
+.art .st { position: absolute; inset-inline-end: 10px; top: 8px; font-size: 11px; font-weight: 600; background: rgba(0,0,0,.34); padding: 2px 8px; border-radius: 999px; }
+.art .perf { position: absolute; inset-inline: 0; bottom: 0; height: 0; border-bottom: 2px dotted rgba(255,255,255,.55); }
+.cbody { padding: 11px 13px 13px; display: grid; gap: 2px; }
+.cbody h3 { font-size: 24px; }
+.cbody .ctry { color: var(--muted); font-size: 13px; }
+.cfoot { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding-top: 8px; }
+.cfoot .dur { font-size: 12px; color: var(--muted); }
+.from { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; display: block; text-align: end; }
+.pr { font-family: var(--display); font-weight: 700; font-size: 30px; color: var(--price); font-variant-numeric: tabular-nums; line-height: 1; }
+.empty { padding: 40px 0; color: var(--muted); text-align: center; }
+
+/* detail */
+.back { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 12px; font-size: 14px; margin-block: 6px 16px; }
+.dhead { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.dhead .code { font-family: var(--display); font-weight: 700; font-size: 64px; line-height: .9; color: var(--price); letter-spacing: .02em; }
+.dhead h2 { font-size: clamp(30px, 5vw, 44px); }
+.dhead p { margin: 2px 0 0; color: var(--muted); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-block: 18px; }
+.fact { background: var(--surface); padding: 10px 14px; }
+.fact span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.fact b { font-family: var(--display); font-size: 26px; font-variant-numeric: tabular-nums; }
+.dlayout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 22px; align-items: start; }
+.filters { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 16px; }
+.filters h3 { font-size: 15px; font-family: var(--body); font-weight: 600; margin-block-end: 6px; }
+.fgroup { display: grid; gap: 6px; }
+.stack { display: grid; gap: 6px; }
+.reset { border: 0; background: transparent; color: var(--muted); text-decoration: underline; text-align: start; padding: 0; font-size: 13px; }
+.listhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-block-end: 12px; }
+.listhead .count { margin-inline-start: 0; }
+.spacer { flex: 1; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 6px; padding: 9px 14px; font-weight: 600; text-decoration: none; font-size: 14px; white-space: nowrap; }
+.btn.ghost { background: var(--surface); color: var(--fg); border: 1px solid var(--line); }
+.datechip { display: inline-flex; gap: 8px; align-items: center; background: var(--fg); color: var(--bg); border-radius: 999px; padding: 4px 6px 4px 12px; font-size: 13px; }
+.datechip button { border: 0; background: rgba(127,127,127,.35); color: inherit; border-radius: 50%; width: 22px; height: 22px; line-height: 1; }
+.itins { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.it { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+.it .main { display: grid; gap: 8px; min-width: 0; }
+.airline { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.abadge { font-family: var(--mono); font-size: 12px; width: 32px; height: 32px; border-radius: 6px; display: grid; place-items: center; color: #fff; background: hsl(var(--h) 42% 34%); }
+.route { display: flex; align-items: center; gap: 6px; }
+.n { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; background: var(--bg); }
+.n.via { border-color: var(--muted); }
+.ln { flex: 1; height: 0; border-top: 2px solid var(--line); min-width: 14px; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.meta b { color: var(--fg); font-weight: 600; }
+.ok { color: var(--good); font-weight: 600; }
+.no { color: var(--warn); font-weight: 600; }
+.buy { display: grid; gap: 6px; justify-items: end; text-align: end; }
+.buy .price { font-family: var(--display); font-weight: 700; font-size: 34px; color: var(--price); line-height: 1; font-variant-numeric: tabular-nums; }
+.buy .pnote { font-size: 12px; color: var(--muted); }
+.noop { color: var(--muted); font-size: 14px; }
+
+/* calendar overlay */
+.overlay { position: fixed; inset: 0; background: rgba(5, 10, 16, .66); z-index: 50; overflow-y: auto; padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; justify-content: center; align-items: flex-start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; width: min(560px, 100%); padding: 18px; display: grid; gap: 14px; }
+.phead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.phead h2 { font-size: 30px; }
+.phead p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.xbtn { border: 1px solid var(--line); background: var(--bg); border-radius: 6px; width: 36px; height: 36px; font-size: 18px; flex: none; }
+.mnav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mnav b { font-family: var(--display); font-size: 24px; text-transform: capitalize; }
+.mnav button { border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 6px 12px; }
+.mnav button:disabled { opacity: .35; cursor: default; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.dow { font-size: 11px; text-align: center; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.day { border: 1px solid transparent; border-radius: 6px; min-height: 52px; padding: 4px 2px; display: grid; align-content: center; justify-items: center; gap: 1px; background: var(--surface2); }
+.day .dn { font-size: 11px; color: var(--muted); }
+.day .dp { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.day.off { background: transparent; border: 1px dashed var(--line); cursor: default; }
+.day.off .dp, .day.off .dn { color: var(--line); }
+.day.blank { visibility: hidden; }
+.day.h0 { background: color-mix(in srgb, var(--good) var(--heat-a), var(--surface)); }
+.day.h1 { background: color-mix(in srgb, var(--good) var(--heat-b), var(--surface)); }
+.day.h2 { background: var(--surface2); }
+.day.h3 { background: color-mix(in srgb, var(--warn) var(--heat-b), var(--surface)); }
+.day.h4 { background: color-mix(in srgb, var(--warn) var(--heat-a), var(--surface)); }
+.day.sel { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
+.legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.legend .bar { display: flex; border-radius: 4px; overflow: hidden; }
+.legend .bar i { width: 26px; height: 10px; display: block; }
+.pfoot { font-size: 12px; color: var(--muted); margin: 0; }
+
+/* tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-block-end: 14px; }
+.tabs a { padding: 9px 14px; text-decoration: none; color: var(--muted); font-weight: 600; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.tabs a[aria-current="page"] { color: var(--fg); border-bottom-color: var(--accent); }
+.fact small { display: block; color: var(--muted); font-size: 12px; }
+.fact b { text-transform: capitalize; }
+
+/* yearly chart */
+.chartbox { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 6px 4px; margin-block-end: 10px; }
+.chartbox svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+.ax { fill: var(--muted); font: 11px var(--mono); }
+.tip { position: absolute; top: 10px; background: var(--fg); color: var(--bg); border-radius: 6px; padding: 8px 10px; font-size: 12px; pointer-events: none; min-width: 160px; z-index: 2; }
+.tip b { font-family: var(--display); font-size: 19px; display: block; text-transform: capitalize; line-height: 1.1; margin-block-end: 3px; }
+.tip div { display: flex; justify-content: space-between; gap: 14px; font-variant-numeric: tabular-nums; }
+.lg { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 20px; height: 3px; border-radius: 2px; display: inline-block; }
+.dot { width: 11px; height: 11px; border: 2px solid var(--fg); border-radius: 50%; display: inline-block; }
+.tablewrap { overflow-x: auto; margin-block: 14px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.mt { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.mt th, .mt td { padding: 8px 12px; text-align: end; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.mt th:first-child, .mt td:first-child { text-align: start; text-transform: capitalize; }
+.mt th { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.mt tr:last-child td { border-bottom: 0; }
+.mt tr.best td { background: color-mix(in srgb, var(--good) var(--heat-b), var(--surface)); }
+.mt tr.worst td { background: color-mix(in srgb, var(--warn) var(--heat-b), var(--surface)); }
+.toast { position: fixed; inset-inline: 16px; bottom: 20px; margin-inline: auto; width: fit-content; max-width: calc(100% - 32px); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; z-index: 60; font-size: 14px; }
+footer { max-width: 1180px; margin-inline: auto; padding-block: 28px 8px; color: var(--muted); font-size: 12px; }
+
+@media (max-width: 860px) {
+  .dlayout { grid-template-columns: minmax(0, 1fr); }
+  .it { grid-template-columns: minmax(0, 1fr); }
+  .buy { justify-items: start; text-align: start; grid-template-columns: auto 1fr; align-items: center; }
+  .buy .btn { grid-column: 1 / -1; }
+  .count { margin-inline-start: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } .card:hover { transform: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span id="brandName">Despega Lima</span><span class="tag">LIM</span></div>
+    <div class="toggles">
+      <div class="seg" role="group" id="langSeg"><button type="button" data-act="lang" data-v="es" aria-pressed="true">ES</button><button type="button" data-act="lang" data-v="en" aria-pressed="false">EN</button></div>
+      <div class="seg" role="group" id="curSeg"><button type="button" data-act="cur" data-v="USD" aria-pressed="true">USD</button><button type="button" data-act="cur" data-v="PEN" aria-pressed="false">PEN</button></div>
+    </div>
+  </header>
+  <nav class="tabs" aria-label="Secciones"><a href="#vuelos" id="tabF"></a><a href="#grafica" id="tabC"></a></nav>
+  <div class="demo" id="demo"></div>
+
+  <main id="home">
+    <section class="hero"><h1 id="heroTitle"></h1><p id="heroSub"></p></section>
+    <div class="toolbar" id="toolbar"></div>
+    <div id="grid" class="grid" aria-live="polite"></div>
+  </main>
+
+  <main id="detail" hidden></main>
+
+  <main id="chartview" hidden></main>
+</div>
+
+<div class="overlay" id="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="calTitle"><div class="panel" id="panel"></div></div>
+<div class="toast" id="toast" hidden role="status"></div>
+<footer id="foot"></footer>
+
+<script>
+/* LOGIC:START */
+const FL = (function () {
+  const USD_PEN = 3.75; // example rate; replace with a daily rate in Phase 3
+
+  // [iata, city es, city en, country es, country en, region, base USD one-way, direct-equivalent minutes, has direct]
+  const DEST = [
+    ['BUE','Buenos Aires','Buenos Aires','Argentina','Argentina','sa',210,300,1],
+    ['SCL','Santiago','Santiago','Chile','Chile','sa',150,225,1],
+    ['BOG','Bogotá','Bogotá','Colombia','Colombia','sa',170,215,1],
+    ['GRU','São Paulo','São Paulo','Brasil','Brazil','sa',260,330,1],
+    ['GIG','Río de Janeiro','Rio de Janeiro','Brasil','Brazil','sa',290,340,0],
+    ['UIO','Quito','Quito','Ecuador','Ecuador','sa',160,150,1],
+    ['LPB','La Paz','La Paz','Bolivia','Bolivia','sa',190,165,1],
+    ['MVD','Montevideo','Montevideo','Uruguay','Uruguay','sa',280,345,0],
+    ['MIA','Miami','Miami','Estados Unidos','United States','na',330,330,1],
+    ['JFK','Nueva York','New York','Estados Unidos','United States','na',420,480,1],
+    ['LAX','Los Ángeles','Los Angeles','Estados Unidos','United States','na',520,510,0],
+    ['IAH','Houston','Houston','Estados Unidos','United States','na',400,380,0],
+    ['MEX','Ciudad de México','Mexico City','México','Mexico','na',310,340,1],
+    ['YYZ','Toronto','Toronto','Canadá','Canada','na',560,500,0],
+    ['PTY','Ciudad de Panamá','Panama City','Panamá','Panama','ca',190,195,1],
+    ['PUJ','Punta Cana','Punta Cana','República Dominicana','Dominican Republic','ca',340,300,0],
+    ['CUN','Cancún','Cancún','México','Mexico','ca',360,280,1],
+    ['SJO','San José','San José','Costa Rica','Costa Rica','ca',250,255,1],
+    ['MAD','Madrid','Madrid','España','Spain','eu',620,745,1],
+    ['BCN','Barcelona','Barcelona','España','Spain','eu',650,790,0],
+    ['FCO','Roma','Rome','Italia','Italy','eu',780,840,0],
+    ['MXP','Milán','Milan','Italia','Italy','eu',770,840,0],
+    ['CDG','París','Paris','Francia','France','eu',720,800,0],
+    ['LHR','Londres','London','Reino Unido','United Kingdom','eu',760,810,0],
+    ['AMS','Ámsterdam','Amsterdam','Países Bajos','Netherlands','eu',690,780,0],
+    ['FRA','Fráncfort','Frankfurt','Alemania','Germany','eu',740,810,0],
+    ['LIS','Lisboa','Lisbon','Portugal','Portugal','eu',640,720,0],
+    ['IST','Estambul','Istanbul','Turquía','Türkiye','eu',880,1020,0],
+    ['ZRH','Zúrich','Zurich','Suiza','Switzerland','eu',830,840,0],
+    ['ATH','Atenas','Athens','Grecia','Greece','eu',900,900,0],
+    ['NRT','Tokio','Tokyo','Japón','Japan','as',1350,1320,0],
+    ['ICN','Seúl','Seoul','Corea del Sur','South Korea','as',1250,1260,0],
+    ['DXB','Dubái','Dubai','Emiratos Árabes Unidos','United Arab Emirates','as',980,1140,0],
+    ['BKK','Bangkok','Bangkok','Tailandia','Thailand','as',1300,1440,0],
+    ['SIN','Singapur','Singapore','Singapur','Singapore','as',1400,1380,0],
+    ['DEL','Delhi','Delhi','India','India','as',1250,1320,0],
+    ['SYD','Sídney','Sydney','Australia','Australia','oc',1500,1100,0],
+    ['AKL','Auckland','Auckland','Nueva Zelanda','New Zealand','oc',1450,1060,0],
+    ['CPT','Ciudad del Cabo','Cape Town','Sudáfrica','South Africa','af',1300,1080,0],
+    ['CAI','El Cairo','Cairo','Egipto','Egypt','af',1000,1100,0]
+  ].map(function (r) {
+    return { iata: r[0], city: { es: r[1], en: r[2] }, country: { es: r[3], en: r[4] }, region: r[5], base: r[6], mins: r[7], direct: !!r[8], hue: hashStr(r[0]) % 360 };
+  });
+
+  const AIR = {
+    CND:{n:'Cóndor Andino'}, VCN:{n:'Vicuña Air'}, PCH:{n:'Pachamama Jet'}, NZC:{n:'Nazca Airways'},
+    TTC:{n:'Titicaca Líneas Aéreas'}, INK:{n:'Inka Wings'}, SLR:{n:'Solaris Pacífico'}, ARC:{n:'Arcoíris Sur'},
+    QNT:{n:'Quinta Luna'}, KLP:{n:'Kolibrí Plus'}, MNK:{n:'Mankora Express',low:1}, WRM:{n:'Wayra Mar',low:1}
+  };
+  Object.keys(AIR).forEach(function (k) { AIR[k].code = k; AIR[k].hue = hashStr('a' + k) % 360; });
+  const POOL = {
+    sa:['CND','VCN','WRM','MNK','PCH'], na:['CND','INK','SLR','KLP','PCH','ARC','VCN'], ca:['PCH','SLR','CND','KLP','VCN'],
+    eu:['INK','ARC','TTC','NZC','SLR','QNT','CND','KLP'], as:['NZC','QNT','TTC','SLR','INK'], oc:['SLR','QNT','NZC'], af:['TTC','QNT','NZC','INK']
+  };
+  const HUBS = {
+    sa:['SCL','BOG','PTY','GRU'], na:['MIA','PTY','BOG','MEX','IAH'], ca:['PTY','BOG','MIA','MEX'],
+    eu:['MAD','AMS','CDG','BOG','PTY','MIA','IST'], as:['IST','DXB','MAD','MIA','LAX'], oc:['SCL','LAX','MIA'], af:['IST','DXB','MAD','AMS']
+  };
+  const SEASON = [1.2, 1.0, 0.95, 0.95, 0.9, 0.95, 1.15, 1.15, 0.92, 0.9, 0.95, 1.25];
+  const WDAY = [1.1, 0.97, 0.92, 0.92, 1.0, 1.1, 1.05]; // Sun..Sat
+  const DEP = ['00:40','06:15','08:30','10:05','13:20','16:45','21:10','23:55'];
+
+  function hashStr(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function rnd(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function p2(n) { return (n < 10 ? '0' : '') + n; }
+  function toUTC(iso) { var p = iso.split('-').map(Number); return Date.UTC(p[0], p[1] - 1, p[2]); }
+  function fromUTC(ms) { var d = new Date(ms); return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()); }
+  function addDays(iso, n) { return fromUTC(toUTC(iso) + n * 86400000); }
+  function weekday(iso) { return new Date(toUTC(iso)).getUTCDay(); }
+  function localISO() { var d = new Date(); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); }
+
+  var TODAY = localISO(), itinCache = {}, minCache = {}, sumCache = {};
+  function setToday(iso) { TODAY = iso; itinCache = {}; minCache = {}; sumCache = {}; }
+  function windowStart() { return addDays(TODAY, 1); }
+  function windowEnd() { var p = TODAY.split('-').map(Number), m = p[1] - 1 + 11, y = p[0] + Math.floor(m / 12); m = m % 12; return fromUTC(Date.UTC(y, m + 1, 0)); }
+
+  function genItins(d) {
+    var r = rnd(hashStr('it:' + d.iata)), pool = POOL[d.region], hubs = HUBS[d.region].filter(function (h) { return h !== d.iata; });
+    var n = 5 + Math.floor(r() * 3), plan = d.direct ? [0, 0, 1, 1, 1, 2, 1] : [1, 1, 1, 2, 2, 1, 2], out = [];
+    for (var i = 0; i < n; i++) {
+      var stops = plan[i], air = AIR[pool[Math.floor(r() * pool.length)]];
+      var h = hubs.slice().sort(function () { return r() - 0.5; }).slice(0, stops);
+      var lay = h.map(function () { return 70 + Math.floor(r() * 300); });
+      var dur = Math.round(d.mins * (stops === 0 ? 1 : stops === 1 ? 1.12 : 1.28)) + lay.reduce(function (a, b) { return a + b; }, 0);
+      var mult = stops === 0 ? 1 + r() * 0.15 : stops === 1 ? 0.78 + r() * 0.17 : 0.66 + r() * 0.16;
+      if (air.low) mult *= 0.82;
+      var k = stops === 0 ? 4 + Math.floor(r() * 4) : 3 + Math.floor(r() * 5);
+      var days = [0, 1, 2, 3, 4, 5, 6].sort(function () { return r() - 0.5; }).slice(0, k).sort();
+      out.push({ id: d.iata + '-' + i, iata: d.iata, air: air, stops: stops, via: h, layovers: lay, mins: dur,
+        base: d.base * mult, checked: !air.low || r() > 0.5, kg: 23, dep: DEP[Math.floor(r() * DEP.length)], days: days });
+    }
+    return out;
+  }
+  function itinsFor(iata) { return itinCache[iata] || (itinCache[iata] = genItins(destOf(iata))); }
+  function destOf(iata) { return DEST.filter(function (d) { return d.iata === iata; })[0]; }
+
+  function priceFor(it, iso) {
+    var wd = weekday(iso);
+    if (it.days.indexOf(wd) < 0) return null;
+    var m = Number(iso.split('-')[1]) - 1, noise = 0.9 + rnd(hashStr(it.id + iso))() * 0.22;
+    return Math.round(it.base * SEASON[m] * WDAY[wd] * noise);
+  }
+  function minForItin(it) {
+    if (minCache[it.id]) return minCache[it.id];
+    var best = null, end = windowEnd();
+    for (var d = windowStart(); d <= end; d = addDays(d, 1)) { var p = priceFor(it, d); if (p != null && (best === null || p < best.price)) best = { price: p, date: d }; }
+    return (minCache[it.id] = best);
+  }
+  function summary(d) {
+    if (sumCache[d.iata]) return sumCache[d.iata];
+    var its = itinsFor(d.iata), s = { price: Infinity, date: null, mins: Infinity, stops: 9 };
+    its.forEach(function (it) { var m = minForItin(it); if (m && m.price < s.price) { s.price = m.price; s.date = m.date; } if (it.mins < s.mins) s.mins = it.mins; if (it.stops < s.stops) s.stops = it.stops; });
+    return (sumCache[d.iata] = s);
+  }
+  function maxMinPrice() { return Math.max.apply(null, DEST.map(function (d) { return summary(d).price; })); }
+  function norm(s) { return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+  function filterDests(o) {
+    var q = norm(o.q || '');
+    return DEST.filter(function (d) {
+      var s = summary(d);
+      if (o.region && o.region !== 'all' && d.region !== o.region) return false;
+      if (o.direct && s.stops !== 0) return false;
+      if (o.maxPrice != null && s.price > o.maxPrice) return false;
+      if (q && norm([d.city.es, d.city.en, d.country.es, d.country.en, d.iata].join(' ')).indexOf(q) < 0) return false;
+      return true;
+    });
+  }
+  function sortDests(list, key, lang) {
+    var a = list.slice();
+    a.sort(function (x, y) {
+      var sx = summary(x), sy = summary(y);
+      if (key === 'duration') return sx.mins - sy.mins || sx.price - sy.price;
+      if (key === 'stops') return sx.stops - sy.stops || sx.price - sy.price;
+      if (key === 'name') return x.city[lang].localeCompare(y.city[lang], lang);
+      return sx.price - sy.price;
+    });
+    return a;
+  }
+  function filterItins(its, f) {
+    return its.filter(function (it) {
+      if (f.stops === '0' && it.stops !== 0) return false;
+      if (f.stops === '1' && it.stops !== 1) return false;
+      if (f.stops === '2' && it.stops < 2) return false;
+      if (f.air && f.air.length && f.air.indexOf(it.air.code) < 0) return false;
+      if (f.maxDur != null && it.mins > f.maxDur) return false;
+      if (f.bag && !it.checked) return false;
+      return true;
+    });
+  }
+  function rows(its, f) {
+    var r = its.map(function (it) {
+      if (f.date) { var p = priceFor(it, f.date); return { itin: it, price: p, date: p == null ? null : f.date }; }
+      var m = minForItin(it); return { itin: it, price: m ? m.price : null, date: m ? m.date : null };
+    });
+    r.sort(function (a, b) {
+      if (a.price == null && b.price == null) return 0; if (a.price == null) return 1; if (b.price == null) return -1;
+      if (f.sort === 'duration') return a.itin.mins - b.itin.mins || a.price - b.price;
+      if (f.sort === 'stops') return a.itin.stops - b.itin.stops || a.price - b.price;
+      return a.price - b.price;
+    });
+    return r;
+  }
+  function months() {
+    var out = [], end = windowEnd().slice(0, 7), d = windowStart().slice(0, 7);
+    while (d <= end) { out.push(d); var p = d.split('-').map(Number); d = p[1] === 12 ? (p[0] + 1) + '-01' : p[0] + '-' + p2(p[1] + 1); }
+    return out;
+  }
+  function calendar(its, ym) {
+    var first = ym + '-01', p = ym.split('-').map(Number), count = new Date(Date.UTC(p[0], p[1], 0)).getUTCDate();
+    var lead = (weekday(first) + 6) % 7, cells = [], min = Infinity, max = -Infinity, s = windowStart(), e = windowEnd();
+    for (var i = 1; i <= count; i++) {
+      var iso = ym + '-' + p2(i), price = null;
+      if (iso >= s && iso <= e) its.forEach(function (it) { var v = priceFor(it, iso); if (v != null && (price === null || v < price)) price = v; });
+      if (price != null) { if (price < min) min = price; if (price > max) max = price; }
+      cells.push({ date: iso, day: i, price: price });
+    }
+    return { lead: lead, cells: cells, min: min, max: max };
+  }
+  function yearSeries(iata) {
+    var its = itinsFor(iata);
+    return months().map(function (ym) {
+      var vals = calendar(its, ym).cells.filter(function (x) { return x.price != null; }).map(function (x) { return x.price; });
+      if (!vals.length) return { ym: ym, min: null, avg: null, max: null, days: 0 };
+      var sum = vals.reduce(function (a, b) { return a + b; }, 0);
+      return { ym: ym, min: Math.min.apply(null, vals), avg: Math.round(sum / vals.length), max: Math.max.apply(null, vals), days: vals.length };
+    });
+  }
+  function heat(price, min, max) {
+    if (max === min) return 2;
+    var t = (price - min) / (max - min);
+    return t < 0.2 ? 0 : t < 0.4 ? 1 : t < 0.6 ? 2 : t < 0.8 ? 3 : 4;
+  }
+  return { DEST: DEST, AIR: AIR, USD_PEN: USD_PEN, yearSeries: yearSeries, setToday: setToday, windowStart: windowStart, windowEnd: windowEnd,
+    itinsFor: itinsFor, destOf: destOf, priceFor: priceFor, summary: summary, maxMinPrice: maxMinPrice, filterDests: filterDests,
+    sortDests: sortDests, filterItins: filterItins, rows: rows, months: months, calendar: calendar, heat: heat, addDays: addDays, weekday: weekday };
+})();
+if (typeof module !== 'undefined') module.exports = FL;
+/* LOGIC:END */
+</script>
+
+<script>
+(function () {
+  var REG = ['sa', 'na', 'ca', 'eu', 'as', 'oc', 'af'];
+  var TXT = {
+    es: {
+      heroT: '¿A dónde quieres volar desde Lima?', heroS: 'Todos los destinos en un solo lugar. Ordénalos por precio y elige la fecha después.',
+      demo: '<b>Datos de ejemplo.</b> Las aerolíneas son inventadas y los precios y horarios son ilustrativos; todavía no hay una fuente real conectada. Tipo de cambio de ejemplo: 1 USD = {r} PEN.',
+      search: 'Buscar ciudad o país', sort: 'Ordenar por', sPrice: 'Precio más bajo', sDur: 'Menor duración', sStops: 'Menos escalas', sName: 'Nombre A–Z',
+      direct: 'Solo vuelos directos', maxP: 'Precio máximo', noLimit: 'Sin límite', upTo: 'Hasta {p}', nDest: '{n} destinos', one: '1 destino', all: 'Todos',
+      reg: { sa: 'Sudamérica', na: 'Norteamérica', ca: 'Centroamérica y Caribe', eu: 'Europa', as: 'Asia', oc: 'Oceanía', af: 'África' },
+      from: 'desde', nonstop: 'Directo', s1: '1 escala', sN: '{n} escalas', fromDur: 'desde {d}', back: 'Todos los destinos', cheapest: 'Más barato', fastest: 'Más rápido', options: 'Opciones de vuelo',
+      cal: 'Calendario de precios', stopsF: 'Escalas', any: 'Cualquiera', s2: '2 o más', airlines: 'Aerolíneas', maxDur: 'Duración máxima', bag: 'Con equipaje de bodega', reset: 'Limpiar filtros',
+      clearDate: 'Quitar fecha', departs: 'Sale {t}', wait: 'espera {d}', carry: 'Mano incluido', checked: 'Bodega {kg} kg incluida', noChecked: 'Sin equipaje de bodega',
+      go: 'Ver oferta', cheapOn: 'Más barato el {d}', onDay: 'Precio del {d}', noOp: 'No opera ese día', none: 'Ningún destino coincide. Prueba quitar algún filtro.',
+      noIt: 'Ningún vuelo coincide con estos filtros.', calT: 'Precios por día', calHint: 'Precio más bajo de cada día para ida desde Lima. Toca un día para ver sus vuelos.',
+      cheapL: 'Más barato', priceyL: 'Más caro', unavail: 'Sin vuelos', pricesIn: 'Precios en {c}', close: 'Cerrar', prev: 'Mes anterior', next: 'Mes siguiente',
+      seeDay: 'Ver vuelos del {d}', oneWay: 'Precio por persona, solo ida.', foot: 'Prototipo con precios de ejemplo. Los precios reales cambian; confirma siempre en la web de la aerolínea antes de comprar.',
+      tryDay: 'Elige un día para ver su precio', routeOf: 'Lima → {c}', tabFlights: 'Vuelos', tabChart: 'Gráfica del año', chartT: '¿Cuándo conviene volar?', chartSub: 'Cómo cambian los precios durante el año para el destino que elijas. Cada punto resume un mes.', destL: 'Destino', minL: 'Fecha más barata', avgL: 'Promedio', maxL: 'Fecha más cara', rangeL: 'Rango del mes', ringL: 'Mes más barato y más caro', bestM: 'Mes más barato', worstM: 'Mes más caro', varL: 'Variación del año', lowestY: 'Precio más bajo del año', partial: '* El primer mes cuenta solo los días que faltan.', monthL: 'Mes', seeThis: 'Ver vuelos de este destino', chartBtn: 'Gráfica del año', toastDemo: 'Ejemplo: aquí se abriría la web de la aerolínea.', chartAria: 'Precio por mes a {c}. Mes más barato: {a}. Mes más caro: {b}.', avgNote: 'promedio {p}'
+    },
+    en: {
+      heroT: 'Where do you want to fly from Lima?', heroS: 'Every destination in one place. Sort by price and pick the date later.',
+      demo: '<b>Sample data.</b> Airlines are made up and prices and times are illustrative; no real data source is connected yet. Example exchange rate: 1 USD = {r} PEN.',
+      search: 'Search city or country', sort: 'Sort by', sPrice: 'Lowest price', sDur: 'Shortest trip', sStops: 'Fewest stops', sName: 'Name A–Z',
+      direct: 'Nonstop only', maxP: 'Max price', noLimit: 'No limit', upTo: 'Up to {p}', nDest: '{n} destinations', one: '1 destination', all: 'All',
+      reg: { sa: 'South America', na: 'North America', ca: 'Central America & Caribbean', eu: 'Europe', as: 'Asia', oc: 'Oceania', af: 'Africa' },
+      from: 'from', nonstop: 'Nonstop', s1: '1 stop', sN: '{n} stops', fromDur: 'from {d}', back: 'All destinations', cheapest: 'Cheapest', fastest: 'Fastest', options: 'Flight options',
+      cal: 'Price calendar', stopsF: 'Stops', any: 'Any', s2: '2 or more', airlines: 'Airlines', maxDur: 'Max duration', bag: 'Checked bag included', reset: 'Clear filters',
+      clearDate: 'Remove date', departs: 'Departs {t}', wait: '{d} layover', carry: 'Carry-on included', checked: 'Checked bag {kg} kg included', noChecked: 'No checked bag',
+      go: 'View offer', cheapOn: 'Cheapest on {d}', onDay: 'Price on {d}', noOp: 'Does not operate that day', none: 'No destination matches. Try removing a filter.',
+      noIt: 'No flight matches these filters.', calT: 'Prices by day', calHint: 'Lowest one-way price from Lima for each day. Tap a day to see its flights.',
+      cheapL: 'Cheapest', priceyL: 'Priciest', unavail: 'No flights', pricesIn: 'Prices in {c}', close: 'Close', prev: 'Previous month', next: 'Next month',
+      seeDay: 'See flights on {d}', oneWay: 'Price per person, one way.', foot: 'Prototype with sample prices. Real fares change; always confirm on the airline website before buying.',
+      tryDay: 'Pick a day to see its price', routeOf: 'Lima → {c}', tabFlights: 'Flights', tabChart: 'Yearly chart', chartT: 'When is the best time to fly?', chartSub: 'How prices change through the year for the destination you pick. Each point sums up one month.', destL: 'Destination', minL: 'Cheapest date', avgL: 'Average', maxL: 'Priciest date', rangeL: 'Month range', ringL: 'Cheapest and priciest month', bestM: 'Cheapest month', worstM: 'Priciest month', varL: 'Yearly swing', lowestY: 'Lowest price of the year', partial: '* The first month only counts the days left.', monthL: 'Month', seeThis: 'See flights for this destination', chartBtn: 'Yearly chart', toastDemo: 'Sample: this would open the airline website.', chartAria: 'Price by month to {c}. Cheapest month: {a}. Priciest month: {b}.', avgNote: 'average {p}'
+    }
+  };
+  var S = { lang: 'es', cur: 'USD', q: '', region: 'all', direct: false, maxPrice: null, sort: 'price', iata: null, month: null, opener: null,
+    f: { stops: 'all', air: [], maxDur: null, bag: false, sort: 'price', date: null } };
+  try { var sl = localStorage.getItem('dl-lang'), sc = localStorage.getItem('dl-cur'); if (sl === 'es' || sl === 'en') S.lang = sl; else if (/^en/i.test(navigator.language || '')) S.lang = 'en'; if (sc === 'USD' || sc === 'PEN') S.cur = sc; } catch (e) {}
+
+  var $ = function (id) { return document.getElementById(id); };
+  function t(k, v) { var s = TXT[S.lang][k]; if (v) Object.keys(v).forEach(function (n) { s = s.replace('{' + n + '}', v[n]); }); return s; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function loc() { return S.lang === 'es' ? 'es-PE' : 'en-US'; }
+  function money(usd) {
+    var v = S.cur === 'PEN' ? usd * FL.USD_PEN : usd;
+    return new Intl.NumberFormat(loc(), { style: 'currency', currency: S.cur, maximumFractionDigits: 0 }).format(v);
+  }
+  function num(usd) { return Math.round(S.cur === 'PEN' ? usd * FL.USD_PEN : usd).toLocaleString(loc()); }
+  function fmtDate(iso, long) {
+    var p = iso.split('-').map(Number);
+    return new Intl.DateTimeFormat(loc(), long ? { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' } : { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(p[0], p[1] - 1, p[2])));
+  }
+  function monthName(ym) { var p = ym.split('-').map(Number); return new Intl.DateTimeFormat(loc(), { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(p[0], p[1] - 1, 1))); }
+  function dur(m) { var h = Math.floor(m / 60), r = m % 60; return S.lang === 'es' ? h + ' h' + (r ? ' ' + r + ' min' : '') : h + 'h' + (r ? ' ' + r + 'm' : ''); }
+  function stopsLabel(n) { return n === 0 ? t('nonstop') : n === 1 ? t('s1') : t('sN', { n: n }); }
+  function seg(items, act, cur) { return '<div class="chips">' + items.map(function (i) { return '<button type="button" class="chip" data-act="' + act + '" data-v="' + i[0] + '" aria-pressed="' + (cur === i[0]) + '">' + esc(i[1]) + '</button>'; }).join('') + '</div>'; }
+
+  /* ---------- home ---------- */
+  function buildHome() {
+    $('heroTitle').textContent = t('heroT'); $('heroSub').textContent = t('heroS'); $('tabF').textContent = t('tabFlights'); $('tabC').textContent = t('tabChart');
+    $('demo').innerHTML = t('demo', { r: FL.USD_PEN }); $('foot').textContent = t('foot');
+    var regs = [['all', t('all')]].concat(REG.map(function (r) { return [r, t('reg')[r]]; }));
+    var maxP = Math.ceil(FL.maxMinPrice() / 50) * 50;
+    $('toolbar').innerHTML =
+      '<div class="trow"><label class="field">' + t('search') + '<input type="search" id="q" value="' + esc(S.q) + '" autocomplete="off"></label>' +
+      '<label class="field">' + t('sort') + '<select id="sort">' + [['price', 'sPrice'], ['duration', 'sDur'], ['stops', 'sStops'], ['name', 'sName']].map(function (o) { return '<option value="' + o[0] + '"' + (S.sort === o[0] ? ' selected' : '') + '>' + t(o[1]) + '</option>'; }).join('') + '</select></label>' +
+      '<label class="range"><span id="maxpl"></span><input type="range" id="maxp" min="100" max="' + maxP + '" step="50" value="' + (S.maxPrice == null ? maxP : S.maxPrice) + '"></label>' +
+      '<label class="check"><input type="checkbox" id="direct"' + (S.direct ? ' checked' : '') + '>' + t('direct') + '</label>' +
+      '<span class="count" id="count"></span></div>' + seg(regs, 'region', S.region);
+    $('maxp').dataset.max = maxP;
+    renderGrid();
+  }
+  function renderGrid() {
+    var maxP = Number($('maxp').dataset.max), mp = $('maxp') ? Number($('maxp').value) : maxP;
+    S.maxPrice = mp >= maxP ? null : mp;
+    $('maxpl').textContent = t('maxP') + ': ' + (S.maxPrice == null ? t('noLimit') : t('upTo', { p: money(S.maxPrice) }));
+    var list = FL.sortDests(FL.filterDests({ q: S.q, region: S.region, direct: S.direct, maxPrice: S.maxPrice }), S.sort, S.lang);
+    $('count').textContent = list.length === 1 ? t('one') : t('nDest', { n: list.length });
+    $('grid').innerHTML = list.length ? list.map(card).join('') : '<p class="empty" style="grid-column:1/-1">' + t('none') + '</p>';
+  }
+  function card(d) {
+    var s = FL.summary(d);
+    return '<button type="button" class="card" data-act="open" data-v="' + d.iata + '"><div class="art" style="--h:' + d.hue + '"><span class="rt" aria-hidden="true">LIM → ' + d.iata + '</span><span class="st">' + stopsLabel(s.stops) + '</span><span class="big" aria-hidden="true">' + d.iata + '</span><span class="perf"></span></div>' +
+      '<div class="cbody"><h3>' + esc(d.city[S.lang]) + '</h3><span class="ctry">' + esc(d.country[S.lang]) + '</span>' +
+      '<div class="cfoot"><span class="dur">' + t('fromDur', { d: dur(s.mins) }) + '</span><span><span class="from">' + t('from') + '</span><span class="pr">' + money(s.price) + '</span></span></div></div></button>';
+  }
+
+  /* ---------- detail ---------- */
+  function openDest(iata) {
+    S.iata = iata; S.f = { stops: 'all', air: [], maxDur: null, bag: false, sort: 'price', date: null };
+    buildDetail(); route();
+  }
+  function closeDest() { S.iata = null; route(); }
+  function buildDetail() {
+    var d = FL.destOf(S.iata), its = FL.itinsFor(S.iata), s = FL.summary(d);
+    var airs = []; its.forEach(function (i) { if (airs.indexOf(i.air.code) < 0) airs.push(i.air.code); });
+    var maxD = Math.ceil(Math.max.apply(null, its.map(function (i) { return i.mins; })) / 60) * 60, minD = Math.floor(Math.min.apply(null, its.map(function (i) { return i.mins; })) / 60) * 60;
+    $('detail').innerHTML =
+      '<button type="button" class="back" data-act="back">← ' + t('back') + '</button>' +
+      '<div class="dhead"><div class="code" aria-hidden="true">' + d.iata + '</div><div><h2>' + t('routeOf', { c: esc(d.city[S.lang]) }) + '</h2><p>' + esc(d.country[S.lang]) + ' · ' + t('oneWay') + '</p></div></div>' +
+      '<div class="facts"><div class="fact"><span>' + t('cheapest') + '</span><b>' + money(s.price) + '</b></div><div class="fact"><span>' + t('fastest') + '</span><b>' + dur(s.mins) + '</b></div><div class="fact"><span>' + t('options') + '</span><b>' + its.length + '</b></div></div>' +
+      '<div class="dlayout"><aside class="filters" aria-label="Filtros">' +
+      '<div class="fgroup"><h3>' + t('stopsF') + '</h3>' + seg([['all', t('any')], ['0', t('nonstop')], ['1', t('s1')], ['2', t('s2')]], 'stops', S.f.stops) + '</div>' +
+      '<div class="fgroup"><h3>' + t('airlines') + '</h3><div class="stack">' + airs.map(function (c) { return '<label class="check"><input type="checkbox" data-act="air" data-v="' + c + '">' + esc(FL.AIR[c].n) + '</label>'; }).join('') + '</div></div>' +
+      '<div class="fgroup"><h3>' + t('maxDur') + '</h3><label class="range"><span id="durl"></span><input type="range" id="maxdur" min="' + minD + '" max="' + maxD + '" step="30" value="' + maxD + '" data-max="' + maxD + '"></label></div>' +
+      '<label class="check"><input type="checkbox" id="bag">' + t('bag') + '</label>' +
+      '<button type="button" class="reset" data-act="reset">' + t('reset') + '</button></aside>' +
+      '<section><div class="listhead"><span class="count" id="icount"></span><span id="dchip"></span><span class="spacer"></span>' +
+      '<label class="field" style="flex-direction:row;align-items:center;gap:8px">' + t('sort') + '<select id="isort">' + [['price', 'sPrice'], ['duration', 'sDur'], ['stops', 'sStops']].map(function (o) { return '<option value="' + o[0] + '">' + t(o[1]) + '</option>'; }).join('') + '</select></label>' +
+      '<button type="button" class="btn ghost" data-act="tochart">' + t('chartBtn') + '</button><button type="button" class="btn" data-act="cal">' + t('cal') + '</button></div><ol class="itins" id="itins"></ol></section></div>';
+    renderItins();
+  }
+  function renderItins() {
+    var its = FL.itinsFor(S.iata), maxD = Number($('maxdur').dataset.max), v = Number($('maxdur').value);
+    S.f.maxDur = v >= maxD ? null : v; S.f.bag = $('bag').checked; S.f.sort = $('isort').value;
+    $('durl').textContent = S.f.maxDur == null ? t('noLimit') : '≤ ' + dur(S.f.maxDur);
+    var list = FL.rows(FL.filterItins(its, S.f), S.f);
+    $('icount').textContent = list.length + ' / ' + its.length + ' ' + t('options').toLowerCase();
+    $('dchip').innerHTML = S.f.date ? '<span class="datechip">' + fmtDate(S.f.date, true) + '<button type="button" data-act="cleardate" aria-label="' + t('clearDate') + '">×</button></span>' : '';
+    $('itins').innerHTML = list.length ? list.map(itinHTML).join('') : '<li class="empty">' + t('noIt') + '</li>';
+  }
+  function itinHTML(r) {
+    var it = r.itin, a = it.air, nodes = '<span class="n">LIM</span>';
+    it.via.forEach(function (h) { nodes += '<span class="ln"></span><span class="n via">' + h + '</span>'; });
+    nodes += '<span class="ln"></span><span class="n">' + it.iata + '</span>';
+    var lay = it.via.map(function (h, i) { return h + ' · ' + t('wait', { d: dur(it.layovers[i]) }); }).join(' · ');
+    var price = r.price == null ? '<div class="noop">' + t('noOp') + '</div>' :
+      '<div class="price">' + money(r.price) + '</div><div class="pnote">' + (S.f.date ? t('onDay', { d: fmtDate(r.date) }) : t('cheapOn', { d: fmtDate(r.date) })) + '</div>';
+    return '<li class="it"><div class="main"><div class="airline"><span class="abadge" style="--h:' + a.hue + '">' + a.code + '</span>' + esc(a.n) + '</div>' +
+      '<div class="route" aria-hidden="true">' + nodes + '</div>' +
+      '<div class="meta"><span><b>' + stopsLabel(it.stops) + '</b>' + (lay ? ' · ' + lay : '') + '</span><span>' + t('departs', { t: it.dep }) + ' · <b>' + dur(it.mins) + '</b></span></div>' +
+      '<div class="meta"><span class="ok">✓ ' + t('carry') + '</span>' + (it.checked ? '<span class="ok">✓ ' + t('checked', { kg: it.kg }) + '</span>' : '<span class="no">✗ ' + t('noChecked') + '</span>') + '</div></div>' +
+      '<div class="buy">' + price + '<button type="button" class="btn" data-act="offer" data-v="' + it.id + '">' + t('go') + '</button></div></li>';
+  }
+
+  /* ---------- calendar ---------- */
+  function openCal(opener) {
+    S.opener = opener || null;
+    var ms = FL.months(); if (!S.month || ms.indexOf(S.month) < 0) S.month = (S.f.date ? S.f.date.slice(0, 7) : ms[0]);
+    renderCal(); $('overlay').hidden = false; $('panel').querySelector('.xbtn').focus();
+  }
+  function closeCal() { $('overlay').hidden = true; if (S.opener && document.body.contains(S.opener)) S.opener.focus(); }
+  function renderCal() {
+    var d = FL.destOf(S.iata), ms = FL.months(), i = ms.indexOf(S.month), its = FL.filterItins(FL.itinsFor(S.iata), S.f), c = FL.calendar(its, S.month);
+    var dows = []; for (var k = 0; k < 7; k++) dows.push(new Intl.DateTimeFormat(loc(), { weekday: 'narrow', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, 1 + k))));
+    var cells = ''; for (var b = 0; b < c.lead; b++) cells += '<span class="day blank"></span>';
+    c.cells.forEach(function (x) {
+      if (x.price == null) cells += '<span class="day off" title="' + t('unavail') + '"><span class="dn">' + x.day + '</span><span class="dp">–</span></span>';
+      else cells += '<button type="button" class="day h' + FL.heat(x.price, c.min, c.max) + (S.f.date === x.date ? ' sel' : '') + '" data-act="pick" data-v="' + x.date + '" aria-label="' + fmtDate(x.date, true) + ', ' + money(x.price) + '"><span class="dn">' + x.day + '</span><span class="dp">' + num(x.price) + '</span></button>';
+    });
+    $('panel').innerHTML =
+      '<div class="phead"><div><h2 id="calTitle">' + t('calT') + ' · ' + esc(d.city[S.lang]) + '</h2><p>' + t('calHint') + '</p></div><button type="button" class="xbtn" data-act="closecal" aria-label="' + t('close') + '">×</button></div>' +
+      '<div class="mnav"><button type="button" data-act="mprev"' + (i <= 0 ? ' disabled' : '') + ' aria-label="' + t('prev') + '">←</button><b>' + monthName(S.month) + '</b><button type="button" data-act="mnext"' + (i >= ms.length - 1 ? ' disabled' : '') + ' aria-label="' + t('next') + '">→</button></div>' +
+      '<div class="cal">' + dows.map(function (w) { return '<span class="dow">' + w + '</span>'; }).join('') + cells + '</div>' +
+      '<div class="legend"><span>' + t('cheapL') + '</span><span class="bar"><i class="day h0"></i><i class="day h1"></i><i class="day h2"></i><i class="day h3"></i><i class="day h4"></i></span><span>' + t('priceyL') + '</span><span class="spacer"></span><span>' + t('pricesIn', { c: S.cur }) + '</span></div>' +
+      '<p class="pfoot">' + t('oneWay') + '</p>';
+  }
+
+  /* ---------- yearly chart ---------- */
+  function monthShort(ym, narrow) { var p = ym.split('-').map(Number); return new Intl.DateTimeFormat(loc(), { month: narrow ? 'narrow' : 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(p[0], p[1] - 1, 1))).replace('.', ''); }
+  function monthLong(ym) { var p = ym.split('-').map(Number); return new Intl.DateTimeFormat(loc(), { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(p[0], p[1] - 1, 1))); }
+  function conv(usd) { return S.cur === 'PEN' ? usd * FL.USD_PEN : usd; }
+  function niceStep(x) { var p = Math.pow(10, Math.floor(Math.log(x) / Math.LN10)), f = x / p; return (f <= 1.5 ? 1 : f <= 3 ? 2 : f <= 7 ? 5 : 10) * p; }
+
+  function buildChart() {
+    var opts = FL.DEST.slice().sort(function (a, b) { return a.city[S.lang].localeCompare(b.city[S.lang], S.lang); }).map(function (d) {
+      return '<option value="' + d.iata + '"' + (d.iata === S.cIata ? ' selected' : '') + '>' + esc(d.city[S.lang]) + ' (' + d.iata + ')</option>';
+    }).join('');
+    $('chartview').innerHTML =
+      '<section class="hero"><h1>' + t('chartT') + '</h1><p>' + t('chartSub') + '</p></section>' +
+      '<div class="trow" style="margin-block-end:14px"><label class="field">' + t('destL') + '<select id="cdest">' + opts + '</select></label><span class="spacer"></span><button type="button" class="btn ghost" data-act="toflights">' + t('seeThis') + '</button></div>' +
+      '<div class="facts" id="cfacts"></div>' +
+      '<div class="chartbox" id="chartbox"><svg id="csvg" role="img"></svg><div class="tip" id="tip" hidden></div></div>' +
+      '<div class="legend" id="clegend"></div>' +
+      '<div class="tablewrap"><table class="mt" id="ctable"></table></div><p class="pfoot" id="cnote"></p>';
+    drawChart();
+  }
+
+  function drawChart() {
+    var d = FL.destOf(S.cIata), ser = FL.yearSeries(S.cIata), ok = ser.filter(function (x) { return x.avg != null; });
+    var best = ok.reduce(function (a, b) { return b.avg < a.avg ? b : a; }), worst = ok.reduce(function (a, b) { return b.avg > a.avg ? b : a; });
+    var lowest = Math.min.apply(null, ok.map(function (x) { return x.min; })), diff = Math.round((worst.avg - best.avg) / best.avg * 100);
+    var partial = FL.windowStart().slice(8) !== '01';
+    function fact(label, val, sub) { return '<div class="fact"><span>' + label + '</span><b>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '<small>&nbsp;</small>') + '</div>'; }
+    $('cfacts').innerHTML = fact(t('lowestY'), money(lowest)) + fact(t('bestM'), monthLong(best.ym), t('avgNote', { p: money(best.avg) })) + fact(t('worstM'), monthLong(worst.ym), t('avgNote', { p: money(worst.avg) })) + fact(t('varL'), '+' + diff + '%');
+
+    var box = $('chartbox'), svg = $('csvg'), W = Math.max(280, Math.floor(box.clientWidth) - 12), narrow = W < 520, H = narrow ? 280 : 340;
+    var m = { l: narrow ? 46 : 58, r: 14, t: 16, b: 30 }, pw = W - m.l - m.r, ph = H - m.t - m.b, n = ser.length;
+    var lo = Math.min.apply(null, ok.map(function (x) { return conv(x.min); })), hi = Math.max.apply(null, ok.map(function (x) { return conv(x.max); }));
+    var step = niceStep(((hi - lo) * 1.1 / 4) || (hi * 0.05) || 1);
+    lo = Math.max(0, Math.floor(lo * 0.97 / step) * step); hi = Math.ceil(hi * 1.03 / step) * step; if (hi <= lo) hi = lo + step;
+    function X(i) { return m.l + pw * (i + 0.5) / n; }
+    function Yv(v) { return m.t + ph * (1 - (v - lo) / (hi - lo)); }
+    function Y(usd) { return Yv(conv(usd)); }
+    var idx = []; ser.forEach(function (x, i) { if (x.avg != null) idx.push(i); });
+    function pts(k) { return idx.map(function (i) { return X(i).toFixed(1) + ',' + Y(ser[i][k]).toFixed(1); }); }
+
+    var g = '';
+    for (var v = lo; v <= hi + step / 1000; v += step) {
+      var yy = Yv(v).toFixed(1);
+      g += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + yy + '" y2="' + yy + '" style="stroke:var(--line);stroke-width:1"/>';
+      g += '<text class="ax" x="' + (m.l - 8) + '" y="' + yy + '" dy="4" text-anchor="end">' + Math.round(v).toLocaleString(loc()) + '</text>';
+    }
+    ser.forEach(function (x, i) { g += '<text class="ax" x="' + X(i).toFixed(1) + '" y="' + (H - 10) + '" text-anchor="middle">' + monthShort(x.ym, W / n < 34) + '</text>'; });
+    g += '<polygon points="' + pts('max').concat(pts('min').reverse()).join(' ') + '" style="fill:var(--good);fill-opacity:.14"/>';
+    g += '<polyline points="' + pts('avg').join(' ') + '" style="fill:none;stroke:var(--price);stroke-width:2.5;stroke-linejoin:round;stroke-dasharray:6 4"/>';
+    g += '<polyline points="' + pts('min').join(' ') + '" style="fill:none;stroke:var(--good);stroke-width:2.5;stroke-linejoin:round"/>';
+    idx.forEach(function (i) {
+      g += '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(ser[i].min).toFixed(1) + '" r="3.5" style="fill:var(--good);stroke:var(--surface);stroke-width:1.5"/>';
+      g += '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(ser[i].avg).toFixed(1) + '" r="3" style="fill:var(--price);stroke:var(--surface);stroke-width:1.5"/>';
+    });
+    [best, worst].forEach(function (x) { g += '<circle cx="' + X(ser.indexOf(x)).toFixed(1) + '" cy="' + Y(x.avg).toFixed(1) + '" r="7" style="fill:none;stroke:var(--fg);stroke-width:2"/>'; });
+    g += '<line id="ccur" y1="' + m.t + '" y2="' + (m.t + ph) + '" style="stroke:var(--muted);stroke-width:1;display:none"/>';
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('aria-label', t('chartAria', { c: d.city[S.lang], a: monthLong(best.ym), b: monthLong(worst.ym) }));
+    svg.innerHTML = g;
+
+    var cur = svg.querySelector('#ccur'), tip = $('tip');
+    function show(ev) {
+      var r = svg.getBoundingClientRect(), x = (ev.clientX - r.left) * (W / r.width);
+      var i = Math.max(0, Math.min(n - 1, Math.round((x - m.l) / pw * n - 0.5))), row = ser[i];
+      if (row.avg == null) return;
+      cur.setAttribute('x1', X(i)); cur.setAttribute('x2', X(i)); cur.style.display = '';
+      tip.innerHTML = '<b>' + monthName(row.ym) + '</b><div><span>' + t('minL') + '</span><span>' + money(row.min) + '</span></div><div><span>' + t('avgL') + '</span><span>' + money(row.avg) + '</span></div><div><span>' + t('maxL') + '</span><span>' + money(row.max) + '</span></div>';
+      tip.hidden = false;
+      var px = svg.offsetLeft + X(i) * (r.width / W), left = px + 14;
+      if (left + tip.offsetWidth > box.clientWidth - 4) left = px - tip.offsetWidth - 14;
+      tip.style.left = Math.max(4, left) + 'px';
+    }
+    svg.onpointermove = show; svg.onpointerdown = show;
+    svg.onpointerleave = function () { tip.hidden = true; cur.style.display = 'none'; };
+
+    $('clegend').innerHTML = '<span class="lg"><i class="sw" style="background:var(--good)"></i>' + t('minL') + '</span>' +
+      '<span class="lg"><i class="sw" style="background:repeating-linear-gradient(90deg,var(--price) 0 6px,transparent 6px 10px)"></i>' + t('avgL') + '</span>' +
+      '<span class="lg"><i class="sw" style="background:var(--good);opacity:.28;height:10px"></i>' + t('rangeL') + '</span>' +
+      '<span class="lg"><i class="dot"></i>' + t('ringL') + '</span><span class="spacer"></span><span>' + t('pricesIn', { c: S.cur }) + ' · ' + t('oneWay') + '</span>';
+    $('ctable').innerHTML = '<thead><tr><th>' + t('monthL') + '</th><th>' + t('minL') + '</th><th>' + t('avgL') + '</th><th>' + t('maxL') + '</th></tr></thead><tbody>' +
+      ser.map(function (x, i) {
+        if (x.avg == null) return '';
+        return '<tr class="' + (x === best ? 'best' : x === worst ? 'worst' : '') + '"><td>' + monthName(x.ym) + (i === 0 && partial ? ' *' : '') + '</td><td>' + money(x.min) + '</td><td>' + money(x.avg) + '</td><td>' + money(x.max) + '</td></tr>';
+      }).join('') + '</tbody>';
+    $('cnote').textContent = partial ? t('partial') : '';
+  }
+  window.addEventListener('resize', function () { if (!$('chartview').hidden) drawChart(); });
+
+  /* ---------- routing + toast ---------- */
+  function route() {
+    var onChart = location.hash === '#grafica';
+    $('home').hidden = onChart || !!S.iata; $('detail').hidden = onChart || !S.iata; $('chartview').hidden = !onChart;
+    document.querySelectorAll('.tabs a').forEach(function (a) { a.setAttribute('aria-current', (a.getAttribute('href') === '#grafica') === onChart ? 'page' : 'false'); });
+    if (onChart) { if (!S.cIata) S.cIata = S.iata || 'MAD'; buildChart(); }
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', route);
+  var toastT;
+  function showToast(msg) { var el = $('toast'); el.textContent = msg; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { el.hidden = true; }, 2600); }
+
+  /* ---------- events ---------- */
+  function setLang(l) { S.lang = l; try { localStorage.setItem('dl-lang', l); } catch (e) {} syncSeg(); document.documentElement.lang = l; refresh(); }
+  function setCur(c) { S.cur = c; try { localStorage.setItem('dl-cur', c); } catch (e) {} syncSeg(); refresh(); }
+  function syncSeg() {
+    document.querySelectorAll('#langSeg button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === S.lang)); });
+    document.querySelectorAll('#curSeg button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === S.cur)); });
+  }
+  function refresh() {
+    buildHome();
+    if (S.iata) {
+      var air = S.f.air.slice(), keep = S.f; buildDetail();
+      keep.air = air; S.f = keep; $('maxdur').value = keep.maxDur == null ? $('maxdur').dataset.max : keep.maxDur; $('bag').checked = keep.bag; $('isort').value = keep.sort;
+      document.querySelectorAll('[data-act="air"]').forEach(function (c) { c.checked = air.indexOf(c.dataset.v) >= 0; });
+      renderItins();
+      if (!$('overlay').hidden) renderCal();
+    }
+    if (!$('chartview').hidden) buildChart();
+  }
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-act]'); if (el && el.tagName === 'INPUT') return;
+    if (e.target === $('overlay')) { closeCal(); return; }
+    if (!el) return; var v = el.dataset.v;
+    switch (el.dataset.act) {
+      case 'lang': setLang(v); break;
+      case 'cur': setCur(v); break;
+      case 'region': S.region = v; document.querySelectorAll('[data-act="region"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === v)); }); renderGrid(); break;
+      case 'open': openDest(v); break;
+      case 'back': closeDest(); break;
+      case 'stops': S.f.stops = v; document.querySelectorAll('[data-act="stops"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === v)); }); renderItins(); break;
+      case 'reset': var d0 = S.f.date; openDest(S.iata); S.f.date = d0; renderItins(); break;
+      case 'cal': openCal(el); break;
+      case 'closecal': closeCal(); break;
+      case 'mprev': case 'mnext': var ms = FL.months(), ix = ms.indexOf(S.month) + (el.dataset.act === 'mnext' ? 1 : -1); if (ix >= 0 && ix < ms.length) { S.month = ms[ix]; renderCal(); $('panel').querySelector('[data-act="' + el.dataset.act + '"]').focus(); } break;
+      case 'pick': S.f.date = v; closeCal(); renderItins(); break;
+      case 'cleardate': S.f.date = null; renderItins(); break;
+      case 'tochart': S.cIata = S.iata; location.hash = 'grafica'; break;
+      case 'toflights': location.hash = 'vuelos'; openDest(S.cIata); break;
+      case 'offer': showToast(t('toastDemo')); break;
+    }
+  });
+  document.addEventListener('input', function (e) {
+    var id = e.target.id;
+    if (id === 'q') { S.q = e.target.value; renderGrid(); }
+    else if (id === 'maxp') renderGrid();
+    else if (id === 'maxdur') renderItins();
+  });
+  document.addEventListener('change', function (e) {
+    var el = e.target, id = el.id;
+    if (id === 'sort') { S.sort = el.value; renderGrid(); }
+    else if (id === 'direct') { S.direct = el.checked; renderGrid(); }
+    else if (id === 'cdest') { S.cIata = el.value; drawChart(); }
+    else if (id === 'bag' || id === 'isort') renderItins();
+    else if (el.dataset.act === 'air') { var a = S.f.air, i = a.indexOf(el.dataset.v); if (el.checked && i < 0) a.push(el.dataset.v); if (!el.checked && i >= 0) a.splice(i, 1); renderItins(); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (!$('overlay').hidden) closeCal(); else if (S.iata && location.hash !== '#grafica') closeDest();
+  });
+
+  document.documentElement.lang = S.lang; syncSeg(); buildHome(); route();
+})();
+</script>
+</body>
+</html>
